@@ -264,15 +264,13 @@ def draw_map(graph, grid_size, screen, timestep=-1, frontier_log=None):
     
     # Ve lai goal va duong vien
     pygame.draw.rect(screen, (255, 0, 0), (graph.goal.x * cell_size, graph.goal.y * cell_size, cell_size, cell_size)) # Ve them goal khi hoan thanh
-    for x in range(grid_size):
-        for y in range(grid_size):
-            pygame.draw.rect(screen, (50, 50, 50), (x * cell_size, y * cell_size, cell_size, cell_size), 1)
+    pygame.draw.rect(screen, (50, 50, 50), (graph.goal.x * cell_size, graph.goal.yy * cell_size, cell_size, cell_size), 1)
 
     # Vẽ đường đi tối ưu khi hoàn thành
     if timestep >= len(graph.path_log) - 1:
         node = graph.goal
         while node:
-            pygame.draw.circle(screen, (3,252,202), (node.x * cell_size + cell_size // 2, node.y * cell_size + cell_size // 2), cell_size // 4)
+            pygame.draw.circle(screen, (207, 85, 37), (node.x * cell_size + cell_size // 2, node.y * cell_size + cell_size // 2), cell_size // 4)
             node = node.parent
         save_image(screen, f"maze_final.png")
 
@@ -292,7 +290,7 @@ def main():
     graph.set_goal(1, 23)
 
     # Tìm đường bằng A*
-    path, log, frontier_log, total_explored, final_cost = graph.a_star()
+    path, log, frontier_log, total_explored, final_cost = graph.bfs()
     graph.path_log = log  # Lưu log để vẽ từng bước
 
     # In thông tin
