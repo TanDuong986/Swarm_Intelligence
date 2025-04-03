@@ -264,7 +264,7 @@ def draw_map(graph, grid_size, screen, timestep=-1, frontier_log=None):
     
     # Ve lai goal va duong vien
     pygame.draw.rect(screen, (255, 0, 0), (graph.goal.x * cell_size, graph.goal.y * cell_size, cell_size, cell_size)) # Ve them goal khi hoan thanh
-    pygame.draw.rect(screen, (50, 50, 50), (graph.goal.x * cell_size, graph.goal.yy * cell_size, cell_size, cell_size), 1)
+    pygame.draw.rect(screen, (50, 50, 50), (graph.goal.x * cell_size, graph.goal.y * cell_size, cell_size, cell_size), 1)
 
     # Vẽ đường đi tối ưu khi hoàn thành
     if timestep >= len(graph.path_log) - 1:
@@ -285,7 +285,7 @@ def main():
     pygame.display.set_caption("Maze Path Planning")
 
     # Tạo graph
-    graph = Graph(grid_size, json_file="map/hand_craft.json")
+    graph = Graph(grid_size, json_file="map/none.json")
     graph.set_start(5, 8) #(x, y theo hệ trục của ảnhh)
     graph.set_goal(1, 23)
 

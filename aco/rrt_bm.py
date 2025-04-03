@@ -116,13 +116,15 @@ class GraphRRT(Graph):
                     return False
             return True
 
+        # Đặt g_score của nút xuất phát bằng 0
+        self.start.g_score = 0
+
         tree = [self.start]  # Cây RRT chứa các Node đã được thêm vào
         log = [(self.start.x, self.start.y)]
         frontier_log = []
         iterations = 0
 
         while iterations < max_iterations:
-            
             iterations += 1
             # Lưu snapshot của cây
             frontier_log.append([(node.x, node.y) for node in tree])
@@ -130,7 +132,7 @@ class GraphRRT(Graph):
             rand_x = random.randint(0, self.grid_size - 1)
             rand_y = random.randint(0, self.grid_size - 1)
             random_point = (rand_x, rand_y)
-            # Tìm node trong cây có khoảng cách gần nhất đến random_point
+            # Tìm nút trong cây có khoảng cách gần nhất đến random_point
             nearest = min(tree, key=lambda node: distance((node.x, node.y), random_point))
             dx = rand_x - nearest.x
             dy = rand_y - nearest.y
@@ -159,17 +161,12 @@ class GraphRRT(Graph):
             # Kiểm tra nếu new_node đủ gần goal
             if distance((new_node.x, new_node.y), (self.goal.x, self.goal.y)) <= step_size:
                 self.goal.parent = new_node
-
-                # Tính cost đến goal
                 dist_to_goal = distance((new_node.x, new_node.y), (self.goal.x, self.goal.y))
                 self.goal.g_score = new_node.g_score + dist_to_goal
-
-                final_cost = self.goal.g_score  # Hoặc final_cost = new_node.g_score + dist_to_goal
-
+                final_cost = self.goal.g_score
                 log.append((self.goal.x, self.goal.y))
                 tree.append(self.goal)
                 frontier_log.append([(node.x, node.y) for node in tree])
-
                 # Xây dựng path từ goal ngược về start
                 path = []
                 current = self.goal
@@ -217,8 +214,8 @@ def draw_map(graph, grid_size, screen, timestep=-1, frontier_log=None):
                 color = (0, 0, 255)  # Start: xanh nước biển
             elif node == graph.goal:
                 color = (255, 0, 0)  # Goal: đỏ
-            # elif (x, y) in graph.path_log[:timestep + 1]:
-            #     color = (255, 255, 0)  # Đã đi qua: vàng
+            elif (x, y) in graph.path_log[:timestep + 1]:
+                color = (255, 255, 0)  # Đã đi qua: vàng
             elif node.is_obstacle:
                 color = (0, 0, 0)  # Vật cản: đen
             else:
@@ -232,6 +229,8 @@ def draw_map(graph, grid_size, screen, timestep=-1, frontier_log=None):
             pygame.draw.rect(screen, (212, 126, 252), (x * cell_size, y * cell_size, cell_size, cell_size))
             pygame.draw.rect(screen, (50, 50, 50), (x * cell_size, y * cell_size, cell_size, cell_size), 1)
     
+    pygame.draw.rect(screen, (0, 0, 255), (graph.start.x * cell_size, graph.start.y * cell_size, cell_size, cell_size)) # Ve them goal khi hoan thanh
+    pygame.draw.rect(screen, (50, 50, 50), (graph.start.x * cell_size, graph.start.y * cell_size, cell_size, cell_size), 1)
     # Khi hoàn thành, vẽ đường đi tối ưu
     if timestep >= len(graph.path_log) - 1:
         node = graph.goal
@@ -248,7 +247,7 @@ def main():
     pygame.display.set_caption("RRT Path Planning Visualization")
 
     # Sử dụng GraphRRT thay cho Graph
-    graph = GraphRRT(grid_size, json_file="map/basic.json")
+    graph = GraphRRT(grid_size, json_file="map/aStar.json")
     graph.set_start(5, 8)
     graph.set_goal(1, 23)
 

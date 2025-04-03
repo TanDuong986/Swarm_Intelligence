@@ -149,6 +149,80 @@ class Graph:
                     if not neighbor_in_open:
                         open_set.append((neighbor.f_score, id(neighbor), neighbor))
         return [], log, frontier_log, len(closed_set), 0, iteration_count
+    
+    def bfs(self):
+        from collections import deque  # Dùng deque làm queue
+        
+        open_set = deque([self.start])  # Queue cho BFS
+        closed_set = set()
+        self.start.g_score = 0  # Chi phí từ start đến node
+        
+        log = []  # Lưu log các bước (closed_set)
+        frontier_log = []  # Lưu trạng thái open_set tại mỗi bước
+
+        while open_set:
+            # Lưu trạng thái hiện tại của open_set vào frontier_log
+            frontier_log.append([(node.x, node.y) for node in open_set])
+            
+            current = open_set.popleft()  # Lấy node đầu tiên trong queue
+
+            if current == self.goal:
+                path = []
+                total_explored = len(closed_set) + 1  # +1 để tính cả goal
+                final_cost = current.g_score  # Chi phí thực tế đến goal
+                while current:
+                    path.append((current.x, current.y))
+                    current = current.parent
+                return path[::-1], log, frontier_log, total_explored, final_cost,100
+
+            if current not in closed_set:
+                closed_set.add(current)
+                log.append((current.x, current.y))
+
+                for neighbor in current.neighbors:
+                    # Chỉ thêm neighbor nếu không phải vật cản và chưa được khám phá
+                    if not neighbor.is_obstacle and neighbor not in closed_set and neighbor not in open_set:
+                        neighbor.parent = current
+                        neighbor.g_score = current.g_score + neighbor.cost
+                        open_set.append(neighbor)
+
+        return [], log, frontier_log, len(closed_set), 0  # Không tìm thấy đường
+    
+    def dfs(self):
+        open_set = [self.start]  # Stack cho DFS
+        closed_set = set()
+        self.start.g_score = 0  # Chi phí từ start đến node
+        
+        log = []  # Lưu log các bước (closed_set)
+        frontier_log = []  # Lưu trạng thái open_set tại mỗi bước
+
+        while open_set:
+            # Lưu trạng thái hiện tại của open_set vào frontier_log
+            frontier_log.append([(node.x, node.y) for node in open_set])
+            
+            current = open_set.pop()  # Lấy node cuối cùng trong stack
+
+            if current == self.goal:
+                path = []
+                total_explored = len(closed_set) + 1  # +1 để tính cả goal
+                final_cost = current.g_score  # Chi phí thực tế đến goal
+                while current:
+                    path.append((current.x, current.y))
+                    current = current.parent
+                return path[::-1], log, frontier_log, total_explored, final_cost,100
+
+            if current not in closed_set:
+                closed_set.add(current)
+                log.append((current.x, current.y))
+
+                for neighbor in current.neighbors:
+                    # Chỉ thêm neighbor nếu không phải vật cản và chưa được khám phá
+                    if not neighbor.is_obstacle and neighbor not in closed_set and neighbor not in open_set:
+                        neighbor.parent = current
+                        neighbor.g_score = current.g_score + neighbor.cost
+                        open_set.append(neighbor)
+
+        return [], log, frontier_log, len(closed_set), 0  # Không tìm thấy đường
 
 def calculate_deviation(path):
     """Tính tổng góc chuyển hướng (radians) của đường đi."""
@@ -181,8 +255,8 @@ def draw_map(graph, grid_size, screen, timestep=-1, frontier_log=None):
                 color = (0, 0, 255)  # Start: xanh nước biển
             elif node == graph.goal:
                 color = (255, 0, 0)  # Goal: đỏ
-            # elif (x, y) in graph.path_log[:timestep + 1]:
-            #     color = (255, 255, 0)  # Đã đi qua: vàng
+            elif (x, y) in graph.path_log[:timestep + 1]:
+                color = (255, 255, 0)  # Đã đi qua: vàng
             elif node.is_obstacle:
                 color = (0, 0, 0)  # Vật cản: đen
             else:
@@ -218,7 +292,7 @@ def main():
     screen = pygame.display.set_mode((width, height))
     pygame.display.set_caption("Maze Path Planning")
 
-    graph = Graph(grid_size, json_file="map/none.json")
+    graph = Graph(grid_size, json_file="map/aStar.json")
     graph.set_start(5, 8) #(x, y theo hệ trục của ảnhh)
     graph.set_goal(1, 23)
 

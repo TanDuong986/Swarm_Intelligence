@@ -193,15 +193,19 @@ class GraphACO(Graph):
     def heuristic(self, node):
         return abs(node.x - self.goal.x) + abs(node.y - self.goal.y)
     
-    def aco(self, num_ants=50, num_iterations=100, evaporation_rate=0.1, alpha=1, beta=2):
+    def aco(self, num_ants=50, num_iterations=100, evaporation_rate=0.1, alpha=1, beta=2,
+            convergence_threshold=1e-3, convergence_iter_limit=10):
         best_path = None
         best_cost = float("inf")
-        all_paths = []  # Log đường đi của các ant trong mỗi iteration
-        
-        # Đặt lại pheromone (nếu cần)
+        all_paths = []  # Log đường đi của các ant qua mỗi vòng lặp
+        convergence_iter = None  # Vòng lặp hội tụ
+        stable_count = 0  # Số vòng lặp liên tiếp mà best_cost không cải thiện đáng kể
+        last_best_cost = best_cost
+
+        # Khởi tạo pheromone cho mỗi cạnh
         for key in self.pheromones:
             self.pheromones[key] = 0.1
-        
+
         for iteration in range(num_iterations):
             iteration_paths = []
             for ant in range(num_ants):
@@ -225,7 +229,7 @@ class GraphACO(Graph):
                         allowed_neighbors.append(neighbor)
                     if not allowed_neighbors:
                         break
-                    # Tính xác suất chuyển động
+                    # Tính xác suất di chuyển dựa trên pheromone và heuristic
                     probs = []
                     for neighbor in allowed_neighbors:
                         key = self._edge_key(current, neighbor)
@@ -253,10 +257,18 @@ class GraphACO(Graph):
                     if total_cost < best_cost:
                         best_cost = total_cost
                         best_path = path
+            # Kiểm tra hội tụ: nếu best_cost không cải thiện nhiều
+            if abs(last_best_cost - best_cost) < convergence_threshold:
+                stable_count += 1
+            else:
+                stable_count = 0
+            last_best_cost = best_cost
+            if stable_count >= convergence_iter_limit and convergence_iter is None:
+                convergence_iter = iteration + 1  # (vòng lặp bắt đầu từ 0)
             # Cập nhật pheromone: bay hơi
             for key in self.pheromones:
                 self.pheromones[key] *= (1 - evaporation_rate)
-            # Tăng pheromone theo đường đi của các ant đạt goal
+            # Cộng pheromone cho các ant đạt goal
             for path, cost in iteration_paths:
                 if path[-1] == self.goal:
                     deposit = 1.0 / cost
@@ -264,7 +276,9 @@ class GraphACO(Graph):
                         key = self._edge_key(path[i], path[i+1])
                         self.pheromones[key] += deposit
             all_paths.append(iteration_paths)
-        return best_path, best_cost, all_paths
+        if convergence_iter is None:
+            convergence_iter = num_iterations
+        return best_path, best_cost, all_paths, convergence_iter
 
 def draw_grid(screen, grid_size, cell_size):
     for x in range(grid_size):
@@ -351,13 +365,13 @@ def main():
     pygame.display.set_caption("ACO Path Planning Visualization")
 
     # Khởi tạo đồ thị bằng GraphACO (kế thừa từ Graph và tích hợp ACO)
-    graph = GraphACO(grid_size, json_file="map/basic.json")
+    graph = GraphACO(grid_size, json_file="map/aStar.json")
     graph.set_start(5, 8) #(x, y theo hệ trục của ảnhh)
     graph.set_goal(1, 23)
 
     # Chạy ACO và nhận kết quả
     start_time = time.time()
-    best_path, best_cost, all_paths = graph.aco(num_ants=100, num_iterations=200, evaporation_rate=0.1, alpha=1, beta=2)
+    best_path, best_cost, all_paths, conv = graph.aco(num_ants=100, num_iterations=200, evaporation_rate=0.4, alpha=1, beta=3)
     comp_time = time.time() - start_time
 
     # In ra thông số benchmark
@@ -365,6 +379,7 @@ def main():
     if best_path:
         print("Best path:", [(node.x, node.y) for node in best_path])
         print("Best cost:", best_cost)
+        print("Conv:", conv)
         # print("Path deviation (radians):", calculate_deviation(best_path))
     else:
         print("No path found by ACO.")
