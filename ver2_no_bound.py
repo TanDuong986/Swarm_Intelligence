@@ -28,7 +28,8 @@ class Boid:
     def apply_force(self, force):
         self.acc += force
 
-    def update(self, dt):
+    def update(self, dt): 
+        # update the position following the velocity and acceleration
         # Clamp total acceleration
         if self.acc.length() > MAX_FORCE:
             self.acc.scale_to_length(MAX_FORCE)
@@ -38,8 +39,8 @@ class Boid:
             self.vel.scale_to_length(MAX_SPEED)
         self.pos += self.vel * dt
         # Reset acceleration
-        self.acc = Vector2(0, 0)
-        self.edges()
+        self.acc = Vector2(0, 0) # after applying the forces reset the acceleration
+        self.edges() # align the edges of the screen
 
     def edges(self):
         # Wrap around the screen
@@ -50,13 +51,12 @@ class Boid:
 
     def flock(self, boids, path, obstacles):
         # Compute behavior forces
-        sep = self.separation(boids) * 100.0
+        sep = self.separation(boids) * 200.0
         ali = self.alignment(boids)   * 100.0
         coh = self.cohesion(boids)    * 100.0
         pat = self.follow_path(path)  * 200.0
         obs = self.avoid_obstacles(obstacles) * 300.0
         pat = self.follow_path(path)  * 200.0
-        obs = self.avoid_obstacles(obstacles) * 200.0
         # Apply
         for force in (sep, ali, coh, pat, obs):
             self.apply_force(force)
