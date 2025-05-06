@@ -3,25 +3,31 @@ import random
 import math
 from pygame.math import Vector2
 import numpy as np
+import time 
+import csv
+import os   
+import sys
 
 # --------------------------- Configuration ---------------------------
 WIDTH, HEIGHT = 1200, 600               # Window size
 NUM_BOIDS = 10                          # Number of agents
-MAX_SPEED = 100.0                       # Maximum speed (pixels/second)
-MAX_FORCE = 300.0                       # Maximum steering force (pixels/second²)
-PERCEPTION_RADIUS = 50                  # Neighborhood radius (pixels)
-WAYPOINT_THRESHOLD = 25                 # Distance to switch to next waypoint (pixels)
+MAX_SPEED = 150.0                       # Maximum speed (pixels/second)
+MAX_FORCE = 500.0                       # Maximum steering force (pixels/second²)
+PERCEPTION_RADIUS = 100                  # Neighborhood radius (pixels)
+WAYPOINT_THRESHOLD = 40                 # Distance to switch to next waypoint (pixels)
 PRINT_INTERVAL = 100                    # Frames between metric prints
 USE_OBSTACLES = True                    # Toggle obstacles on/off
 FPS = 60                                # Target frames per second
-SEED = 25                               # Seed for reproducible randomness
+CELL_SIZE = 100                         # Size of each cell for entropy calculation
+SEED = 23                               # Seed for reproducible randomness
+NUM_PATH_WPS = 2
 
 # Base gains for behaviors
 BASE_GAINS = {
-    'separation': 300.0,
-    'alignment': 100.0,
-    'cohesion': 100.0,
-    'path': 350.0,
+    'separation': 230.0,
+    'alignment': 200.0,
+    'cohesion': 200.0,
+    'path': 300.0,
     'obstacle': 300.0
 }
 
@@ -29,13 +35,13 @@ BASE_GAINS = {
 def create_obstacles():
     obs = []
     circle_data = [
-        (Vector2(200, 300), 50),
-        (Vector2(600, 200), 75),
+        # (Vector2(200, 300), 50),
+        (Vector2(600, 300), 75),
     ]
     for center, radius in circle_data:
         obs.append({'type': 'circle', 'center': center, 'radius': radius})
-    poly_pts = [Vector2(400, 400), Vector2(450, 500), Vector2(350, 500)]
-    obs.append({'type': 'polygon', 'points': poly_pts})
+    # poly_pts = [Vector2(400, 400), Vector2(450, 500), Vector2(350, 500)] # tạo vật cản dạng polygon 
+    # obs.append({'type': 'polygon', 'points': poly_pts})
     return obs
 
 
@@ -68,7 +74,7 @@ def build_occupancy(obstacles):
 # --------------------------- Boid Class ---------------------------
 class Boid:
     def __init__(self):
-        self.pos = Vector2(random.uniform(0, WIDTH), random.uniform(0, HEIGHT))
+        self.pos = Vector2(random.uniform(0, WIDTH/10), random.uniform(0, HEIGHT/10))
         angle = random.uniform(0, 2*math.pi)
         self.vel = Vector2(math.cos(angle), math.sin(angle)) * MAX_SPEED
         self.acc = Vector2(0, 0)
@@ -188,46 +194,143 @@ class Boid:
         poly = [p.rotate(-ang) + self.pos for p in pts]
         pygame.draw.polygon(screen, (255,255,255), poly)
 
+
+def compute_metrics(boids):
+    # Tính toán chỉ số order
+    sum_vel = Vector2(0, 0)
+    for b in boids:
+        sum_vel += b.vel
+    order = sum_vel.length() / (len(boids) * MAX_SPEED)
+
+    # Tính toán entropy
+    cols, rows = WIDTH // CELL_SIZE, HEIGHT // CELL_SIZE
+    counts = [0] * (cols * rows)
+    for b in boids:
+        c = int(min(max(b.pos.x // CELL_SIZE, 0), cols-1))
+        r = int(min(max(b.pos.y // CELL_SIZE, 0), rows-1))
+        counts[r*cols + c] += 1
+    entropy = 0
+    N = len(boids)
+    for c in counts:
+        if c > 0:
+            p = c / N
+            entropy -= p * math.log(p)
+
+    return order, entropy
+
 # --------------------------- Main Simulation ---------------------------
+# def run_simulation(): #old version not have timer for end process 
+#     pygame.init()
+#     random.seed(SEED); np.random.seed(SEED)
+#     screen = pygame.display.set_mode((WIDTH,HEIGHT))
+#     font = pygame.font.SysFont(None,24)
+#     clock = pygame.time.Clock()
+
+#     boids = [Boid() for _ in range(NUM_BOIDS)]
+#     obstacles = create_obstacles() if USE_OBSTACLES else []
+#     occupied = build_occupancy(obstacles)
+#     # path = [Vector2(random.uniform(0,WIDTH), random.uniform(0,HEIGHT)) for _ in range(NUM_PATH_WPS)]
+#     path = [Vector2(70, 60), Vector2(1100, 500)]
+
+#     frame = 0; running = True
+#     while running:
+#         dt = clock.tick(FPS) / 1000
+#         for e in pygame.event.get():
+#             if e.type == pygame.QUIT:
+#                 running = False
+#         screen.fill((30,30,30))
+#         # draw obstacles
+#         for o in obstacles:
+#             if o['type'] == 'circle':
+#                 c, r = o['center'], o['radius']
+#                 pygame.draw.circle(screen, (200,50,50), (int(c.x), int(c.y)), r)
+#             else:
+#                 pts = [(int(p.x), int(p.y)) for p in o['points']]
+#                 pygame.draw.polygon(screen, (200,50,50), pts)
+#         # draw waypoints
+#         for idx, wp in enumerate(path,1):
+#             color = (50,200,50) if idx-1 == boids[0].current_wp else (100,200,100)
+#             pygame.draw.circle(screen, color, (int(wp.x), int(wp.y)), 6)
+#             screen.blit(font.render(str(idx), True, (255,255,255)), (wp.x+8, wp.y-8))
+#         # update & draw boids
+#         for b in boids:
+#             b.flock(boids, path, occupied)
+#             b.update(dt)
+#             b.draw(screen)
+#         pygame.display.flip(); frame += 1
+#     pygame.quit()
+
 def run_simulation():
     pygame.init()
-    random.seed(SEED); np.random.seed(SEED)
-    screen = pygame.display.set_mode((WIDTH,HEIGHT))
-    font = pygame.font.SysFont(None,24)
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    font = pygame.font.SysFont(None, 24)
     clock = pygame.time.Clock()
-
     boids = [Boid() for _ in range(NUM_BOIDS)]
     obstacles = create_obstacles() if USE_OBSTACLES else []
-    occupied = build_occupancy(obstacles)
-    path = [Vector2(random.uniform(0,WIDTH), random.uniform(0,HEIGHT)) for _ in range(6)]
+    #path = [Vector2(random.uniform(0,WIDTH), random.uniform(0,HEIGHT)) for _ in range(NUM_PATH_WPS)]
+    path = [Vector2(70, 60), Vector2(1100, 500)]
+    frame = 0
+    running = True
+    total_time = 300  # Total time in seconds for each trial
+    trials = 5  # Number of trials to run
+    trial_num = 1  # Start from trial 1
 
-    frame = 0; running = True
-    while running:
-        dt = clock.tick(FPS) / 1000
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT:
-                running = False
-        screen.fill((30,30,30))
-        # draw obstacles
-        for o in obstacles:
-            if o['type'] == 'circle':
-                c, r = o['center'], o['radius']
-                pygame.draw.circle(screen, (200,50,50), (int(c.x), int(c.y)), r)
-            else:
-                pts = [(int(p.x), int(p.y)) for p in o['points']]
-                pygame.draw.polygon(screen, (200,50,50), pts)
-        # draw waypoints
-        for idx, wp in enumerate(path,1):
-            color = (50,200,50) if idx-1 == boids[0].current_wp else (100,200,100)
-            pygame.draw.circle(screen, color, (int(wp.x), int(wp.y)), 6)
-            screen.blit(font.render(str(idx), True, (255,255,255)), (wp.x+8, wp.y-8))
-        # update & draw boids
-        for b in boids:
-            b.flock(boids, path, occupied)
-            b.update(dt)
-            b.draw(screen)
-        pygame.display.flip(); frame += 1
+    while trials > 0:
+        # Generate new file name for each trial
+        file_name = f"trial{trial_num}.csv"
+
+        # Open the CSV file and write header
+        with open(file_name, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Time (s)", "Order", "Entropy"])
+
+        start_time = time.time()
+        print(f"Starting Trial {trial_num}...")
+
+        while time.time() - start_time < total_time:  # Run trial for total_time seconds
+            dt = clock.tick(FPS) / 1000.0
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            screen.fill((30, 30, 30))
+            pygame.draw.rect(screen, (200,200,200), (0, 0, WIDTH, HEIGHT), 2)
+            for wp in path:
+                pygame.draw.circle(screen, (50,50,50), (int(wp.x), int(wp.y)), 3)
+
+            # Draw obstacles
+            for obs in obstacles:
+                if obs['type'] == 'circle':
+                    c = obs.get('center') or obs.get('pos')
+                    pygame.draw.circle(screen, (200,50,50), (int(c.x), int(c.y)), obs['radius'], 0)
+                elif obs['type'] == 'polygon':
+                    pts = [(int(p.x), int(p.y)) for p in obs['points']]
+                    pygame.draw.polygon(screen, (200,50,50), pts, 0)
+
+            # Update & draw boids
+            for b in boids:
+                b.flock(boids, path, obstacles)
+                b.update(dt)
+                b.draw(screen)
+
+            # Log metrics to CSV after each frame
+            if frame % PRINT_INTERVAL == 0:
+                log_metrics_to_csv(boids, frame, file_name)
+
+            pygame.display.flip()
+            frame += 1
+
+        # After trial ends, check if more trials remain
+        trials -= 1
+        trial_num += 1  # Increment trial number
+
+        # If there are more trials, restart the script for the next trial
+        if trials > 0:
+            print(f"Trial {trial_num - 1} completed. Starting trial {trial_num}...")
+            os.execl(sys.executable, sys.executable, *sys.argv)  # Restart the script
+
     pygame.quit()
+
 
 if __name__ == '__main__':
     run_simulation()
