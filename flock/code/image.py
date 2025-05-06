@@ -10,12 +10,12 @@ import sys
 
 # --------------------------- Configuration ---------------------------
 WIDTH, HEIGHT = 1200, 600               # Window size
-NUM_BOIDS = 10                          # Number of agents
-MAX_SPEED = 150.0                       # Maximum speed (pixels/second)
+NUM_BOIDS = 3                         # Number of agents
+MAX_SPEED = 250.0                       # Maximum speed (pixels/second)
 MAX_FORCE = 500.0                       # Maximum steering force (pixels/second²)
-PERCEPTION_RADIUS = 100                  # Neighborhood radius (pixels)
+PERCEPTION_RADIUS = 50                  # Neighborhood radius (pixels)
 WAYPOINT_THRESHOLD = 40                 # Distance to switch to next waypoint (pixels)
-PRINT_INTERVAL = 100                    # Frames between metric prints
+PRINT_INTERVAL = 5                    # Frames between metric prints
 USE_OBSTACLES = True                    # Toggle obstacles on/off
 FPS = 60                                # Target frames per second
 CELL_SIZE = 100                         # Size of each cell for entropy calculation
@@ -36,7 +36,7 @@ def create_obstacles():
     obs = []
     circle_data = [
         # (Vector2(200, 300), 50),
-        (Vector2(600, 300), 75),
+        (Vector2(600, 300), 75)
     ]
     for center, radius in circle_data:
         obs.append({'type': 'circle', 'center': center, 'radius': radius})
@@ -70,6 +70,15 @@ def build_occupancy(obstacles):
                     if mask.get_at((x, y)):
                         occupied.append(Vector2(min_x+x, min_y+y))
     return occupied
+
+def log_metrics_to_csv(boids, frame, file_name="metrics.csv"):
+    order, entropy = compute_metrics(boids)
+    time_normalized = frame / FPS  # Tính thời gian tính theo giây
+
+    # Ghi vào file CSV
+    with open(file_name, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([time_normalized, order, entropy])
 
 # --------------------------- Boid Class ---------------------------
 class Boid:
@@ -108,10 +117,11 @@ class Boid:
         pat = self.seek(target)
         obsf = self.avoid_occupancy(occupied)
         # dynamic weighting based on proximity to obstacle
+        # print(self.pos,occupied)
         min_d = min((self.pos.distance_to(p) for p in occupied), default=PERCEPTION_RADIUS)
         urgency = max(0.0, (PERCEPTION_RADIUS - min_d) / PERCEPTION_RADIUS)
         gains = BASE_GAINS.copy()
-        gains['obstacle'] *= 1.0 + urgency * 2.0
+        gains['obstacle'] *= 1.0 + urgency * 1.2
         scale_others = 1.0 - urgency
         for key in ('separation','alignment','cohesion','path'):
             gains[key] *= scale_others
@@ -158,18 +168,35 @@ class Boid:
             return target, True
         return target, False
 
+    # def avoid_occupancy(self, occupied):
+    #     steer = Vector2(0,0); count=0
+    #     for p in occupied:
+    #         d = self.pos.distance_to(p)
+    #         if d < PERCEPTION_RADIUS:
+    #             strength = MAX_FORCE * (PERCEPTION_RADIUS - d) / PERCEPTION_RADIUS
+    #             steer += (self.pos - p).normalize() * strength; count += 1
+    #     if count > 0:
+    #         steer /= count
+    #         if steer.length() > MAX_FORCE:
+    #             steer.scale_to_length(MAX_FORCE)
+    #     return steer
     def avoid_occupancy(self, occupied):
-        steer = Vector2(0,0); count=0
+        steer = Vector2(0, 0)
+        count = 0
         for p in occupied:
-            d = self.pos.distance_to(p)
-            if d < PERCEPTION_RADIUS:
-                strength = MAX_FORCE * (PERCEPTION_RADIUS - d) / PERCEPTION_RADIUS
-                steer += (self.pos - p).normalize() * strength; count += 1
+            # Đảm bảo p là Vector2
+            if isinstance(p, Vector2):
+                d = self.pos.distance_to(p)
+                if d < PERCEPTION_RADIUS:
+                    strength = MAX_FORCE * (PERCEPTION_RADIUS - d) / PERCEPTION_RADIUS
+                    steer += (self.pos - p).normalize() * strength
+                    count += 1
         if count > 0:
             steer /= count
             if steer.length() > MAX_FORCE:
                 steer.scale_to_length(MAX_FORCE)
         return steer
+
 
     def seek(self, target):
         desired = target - self.pos
@@ -196,13 +223,24 @@ class Boid:
 
 
 def compute_metrics(boids):
-    # Tính toán chỉ số order
+        # Tính tổng vector hướng (cộng các vector vận tốc chuẩn hoá)
     sum_vel = Vector2(0, 0)
     for b in boids:
-        sum_vel += b.vel
-    order = sum_vel.length() / (len(boids) * MAX_SPEED)
+        # Tính hướng di chuyển từ vận tốc
+        direction = b.vel.normalize()  # chuẩn hoá vận tốc để lấy hướng
+        sum_vel += direction
+    
+    # Tính order (chuẩn hoá tổng hướng)
+    if len(boids) > 0:
+        avg_vel = sum_vel / len(boids)
+    else:
+        avg_vel = Vector2(0, 0)
+    
+    # Tính norm của vector hướng (order)
+    order = avg_vel.length()  # Độ dài của tổng vector hướng sẽ là order
+    # print(f'order {order:.3f}')
 
-    # Tính toán entropy
+    # Calculate entropy (distribution of boids in the space)
     cols, rows = WIDTH // CELL_SIZE, HEIGHT // CELL_SIZE
     counts = [0] * (cols * rows)
     for b in boids:
@@ -216,7 +254,8 @@ def compute_metrics(boids):
             p = c / N
             entropy -= p * math.log(p)
 
-    return order, entropy
+    return round(order,5), round(entropy,5)
+
 
 # --------------------------- Main Simulation ---------------------------
 # def run_simulation(): #old version not have timer for end process 
@@ -265,51 +304,51 @@ def run_simulation():
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     font = pygame.font.SysFont(None, 24)
     clock = pygame.time.Clock()
-    boids = [Boid() for _ in range(NUM_BOIDS)]
-    obstacles = create_obstacles() if USE_OBSTACLES else []
-    #path = [Vector2(random.uniform(0,WIDTH), random.uniform(0,HEIGHT)) for _ in range(NUM_PATH_WPS)]
-    path = [Vector2(70, 60), Vector2(1100, 500)]
-    frame = 0
-    running = True
-    total_time = 300  # Total time in seconds for each trial
-    trials = 5  # Number of trials to run
+
+    total_time = 180  # Total time in seconds for each trial
+    trials = 10  # Number of trials to run
     trial_num = 1  # Start from trial 1
 
     while trials > 0:
-        # Generate new file name for each trial
-        file_name = f"trial{trial_num}.csv"
+        boids = [Boid() for _ in range(NUM_BOIDS)]
+        obstacles = create_obstacles() if USE_OBSTACLES else []
+        occupied = build_occupancy(obstacles)
+        path = [Vector2(70, 60), Vector2(1100, 500)]
+        frame = 0
+        running = True
+        file_name = f"test{trial_num}.csv"
 
-        # Open the CSV file and write header
-        with open(file_name, mode='w', newline='') as file:
+        # Open the CSV file and write header (only once for each trial)
+        with open(file_name, mode='w', newline='') as file:  # Use 'w' to overwrite each trial file
             writer = csv.writer(file)
-            writer.writerow(["Time (s)", "Order", "Entropy"])
+            writer.writerow(["Time (s)", "Order", "Entropy"])  # Write the header for each trial
 
         start_time = time.time()
         print(f"Starting Trial {trial_num}...")
 
-        while time.time() - start_time < total_time:  # Run trial for total_time seconds
+        while time.time() - start_time < total_time:
             dt = clock.tick(FPS) / 1000.0
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
 
             screen.fill((30, 30, 30))
-            pygame.draw.rect(screen, (200,200,200), (0, 0, WIDTH, HEIGHT), 2)
+            pygame.draw.rect(screen, (200, 200, 200), (0, 0, WIDTH, HEIGHT), 2)
             for wp in path:
-                pygame.draw.circle(screen, (50,50,50), (int(wp.x), int(wp.y)), 3)
+                pygame.draw.circle(screen, (0, 255, 0), (int(wp.x), int(wp.y)), 5)
 
             # Draw obstacles
             for obs in obstacles:
                 if obs['type'] == 'circle':
                     c = obs.get('center') or obs.get('pos')
-                    pygame.draw.circle(screen, (200,50,50), (int(c.x), int(c.y)), obs['radius'], 0)
+                    pygame.draw.circle(screen, (200, 50, 50), (int(c.x), int(c.y)), obs['radius'], 0)
                 elif obs['type'] == 'polygon':
                     pts = [(int(p.x), int(p.y)) for p in obs['points']]
-                    pygame.draw.polygon(screen, (200,50,50), pts, 0)
+                    pygame.draw.polygon(screen, (200, 50, 50), pts, 0)
 
             # Update & draw boids
             for b in boids:
-                b.flock(boids, path, obstacles)
+                b.flock(boids, path, occupied)
                 b.update(dt)
                 b.draw(screen)
 
@@ -320,14 +359,8 @@ def run_simulation():
             pygame.display.flip()
             frame += 1
 
-        # After trial ends, check if more trials remain
         trials -= 1
         trial_num += 1  # Increment trial number
-
-        # If there are more trials, restart the script for the next trial
-        if trials > 0:
-            print(f"Trial {trial_num - 1} completed. Starting trial {trial_num}...")
-            os.execl(sys.executable, sys.executable, *sys.argv)  # Restart the script
 
     pygame.quit()
 
