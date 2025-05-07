@@ -8,37 +8,37 @@ import time
 # --------------------------- Configuration ---------------------------
 WIDTH, HEIGHT = 1200, 600               # Window size
 NUM_BOIDS = 10                          # Number of agents
-MAX_SPEED = 350.0                       # Maximum speed (pixels/second)
-MAX_FORCE = 500.0                       # Maximum steering force (pixels/second²)
-PERCEPTION_RADIUS = 100                  # Neighborhood radius (pixels)
+MAX_SPEED = 200.0                       # Maximum speed (pixels/second)
+MAX_FORCE = 600.0                       # Maximum steering force (pixels/second²)
+PERCEPTION_RADIUS = 50                  # Neighborhood radius (pixels)
 WAYPOINT_THRESHOLD = 40                 # Distance to switch to next waypoint (pixels)
 PRINT_INTERVAL = 100                    # Frames between metric prints
 USE_OBSTACLES = True                    # Toggle obstacles on/off
 FPS = 60                                # Target frames per second
 CELL_SIZE = 20                         # Size of each cell for entropy calculation
-SEED = 23                               # Seed for reproducible randomness
-NUM_PATH_WPS = 2
+SEED = 32                               # Seed for reproducible randomness
+NUM_PATH_WPS = 3
 
 # Base gains for behaviors
 BASE_GAINS = {
-    'separation': 230.0,
+    'separation': 250.0,
     'alignment': 200.0,
     'cohesion': 200.0,
-    'path': 300.0,
-    'obstacle': 300.0
+    'path': 350.0,
+    'obstacle': 280.0
 }
 
 # --------------------------- Obstacle Setup ---------------------------
 def create_obstacles():
     obs = []
     circle_data = [
-        # (Vector2(200, 300), 50),
-        (Vector2(600, 300), 75),
+        (Vector2(200, 200), 50),
+        (Vector2(600, 300), 60),
     ]
     for center, radius in circle_data:
         obs.append({'type': 'circle', 'center': center, 'radius': radius})
-    # poly_pts = [Vector2(400, 400), Vector2(450, 500), Vector2(350, 500)] # tạo vật cản dạng polygon 
-    # obs.append({'type': 'polygon', 'points': poly_pts})
+    poly_pts = [Vector2(400, 400), Vector2(450, 500), Vector2(350, 500)] # tạo vật cản dạng polygon 
+    obs.append({'type': 'polygon', 'points': poly_pts})
     return obs
 
 
@@ -107,7 +107,7 @@ class Boid:
         # dynamic weighting based on proximity to obstacle
         # print(self.pos,occupied)
         min_d = min((self.pos.distance_to(p) for p in occupied), default=PERCEPTION_RADIUS)
-        time.sleep(100)
+        # time.sleep(100)
         urgency = max(0.0, (PERCEPTION_RADIUS - min_d) / PERCEPTION_RADIUS)
         gains = BASE_GAINS.copy()
         gains['obstacle'] *= 1.0 + urgency * 2.0
@@ -229,7 +229,7 @@ def run_simulation():
     obstacles = create_obstacles() if USE_OBSTACLES else []
     occupied = build_occupancy(obstacles)
     # path = [Vector2(random.uniform(0,WIDTH), random.uniform(0,HEIGHT)) for _ in range(NUM_PATH_WPS)]
-    path = [Vector2(70, 60), Vector2(1100, 500)]
+    path = [Vector2(70, 60), Vector2(1100, 500), Vector2(200, 500), Vector2(1100, 60)]
 
     frame = 0; running = True
     while running:
