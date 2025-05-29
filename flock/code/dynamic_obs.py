@@ -7,7 +7,7 @@ import time
 
 # --------------------------- Configuration ---------------------------
 WIDTH, HEIGHT = 1200, 600               # Window size
-NUM_BOIDS = 10                          # Number of agents
+NUM_BOIDS = 30                          # Number of agents
 MAX_SPEED = 200.0                       # Maximum speed (pixels/second)
 MAX_FORCE = 600.0                       # Maximum steering force (pixels/second²)
 PERCEPTION_RADIUS = 50                  # Neighborhood radius (pixels)
